@@ -337,9 +337,51 @@ fn typ(db: &dyn Ast, decl: Arc<Decl>) -> Option<Arc<Decl>> {
                 1 => db.resolve_type((**id).clone(), loc),
                 _ => None,
             },
-            Type::Set(_) => db.resolve_type(Type::Count, loc),
-            Type::List(_) => None,        // Not implemented in Zeek.
-            Type::Table(_ks, _v) => None, // TODO(bbannier): Implement resolving for loops over tables.
+            Type::Set(elements) => {
+                if i == &0 {
+                    // Return type of the set elements
+                    if let Some(element_type) = elements.first() {
+                        db.resolve_type(element_type.clone(), loc)
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            }
+            Type::Table(keys, value) => {
+                match i {
+                    0 => {
+                        // For first loop variable return a tuple of key types
+                        let key_types = keys.iter().cloned().collect::<Vec<_>>();
+                        if key_types.len() == 1 {
+                            db.resolve_type(key_types[0].clone(), loc)
+                        } else {
+                            // Create a tuple type for multiple keys
+                            db.resolve_type(
+                                Type::Id(
+                                    format!(
+                                        "tuple[{}]",
+                                        key_types
+                                            .iter()
+                                            .map(|t| t.to_string())
+                                            .collect::<Vec<_>>()
+                                            .join(", ")
+                                    )
+                                    .into(),
+                                ),
+                                loc,
+                            )
+                        }
+                    }
+                    1 => {
+                        // TODO::Second loop variable, return the value type - correct?
+                        db.resolve_type((**value).clone(), loc)
+                    }
+                    _ => None,
+                }
+            }
+            Type::List(_) => None, // Not implemented in Zeek???
             _ => None,
         };
     }
